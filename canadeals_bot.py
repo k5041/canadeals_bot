@@ -1,7 +1,6 @@
 import requests
 import feedparser
 import os
-import re
 
 # Constants
 RSS_FEED_URL = "https://www.yyzdeals.com/atom/1"
@@ -15,27 +14,10 @@ TELEGRAPH_EDIT_URL = "https://api.telegra.ph/editPage"
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 def clean_content(html_content):
-    """ Remove unwanted text and convert HTML tags to Telegra.ph format. """
+    """ Remove unwanted text from the content. """
     unwanted_text = "<h2>Sign up for YYZ Deals Alerts</h2>"
     if unwanted_text in html_content:
         html_content = html_content.split(unwanted_text)[0]
-
-    # Fix images
-    img_pattern = r'<img.*?src=["\'](https?://.*?)(?=["\'])'
-    html_content = re.sub(img_pattern, lambda match: f'{{"tag": "img", "attrs": {{"src": "{match.group(1)}"}}}}', html_content)
-
-    # Fix links
-    link_pattern = r'<a.*?href=["\'](https?://.*?)(?=["\'])'
-    html_content = re.sub(link_pattern, lambda match: f'{{"tag": "a", "attrs": {{"href": "{match.group(1)}"}}}}', html_content)
-
-    # Fix strong (bold) text
-    strong_pattern = r'<strong.*?>(.*?)</strong>'
-    html_content = re.sub(strong_pattern, lambda match: f'{{"tag": "strong", "children": ["{match.group(1)}"]}}', html_content)
-
-    # Fix em (italic) text
-    em_pattern = r'<em.*?>(.*?)</em>'
-    html_content = re.sub(em_pattern, lambda match: f'{{"tag": "em", "children": ["{match.group(1)}"]}}', html_content)
-
     return html_content
 
 
@@ -85,7 +67,9 @@ def check_feed():
     """ Process RSS feed and post updates to Telegram. """
     posted_messages = get_last_10_messages()
     feed = feedparser.parse(RSS_FEED_URL)
-    for entry in feed.entries:
+    
+    # Reverse the feed entries so they are processed in the correct order
+    for entry in reversed(feed.entries):
         title = entry.title
         content_html = clean_content(entry.content[0].value)
 
@@ -117,6 +101,7 @@ def check_feed():
                     "text": new_message_text,
                     "parse_mode": "Markdown"
                 })
+
 
 
 if __name__ == "__main__":
