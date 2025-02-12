@@ -25,3 +25,6 @@ message_data = {
 requests.post(telegram_url, data=message_data)
 
 print(f"Post URL: {post_url}")
+print(f"TELEGRAPH_ACCESS_TOKEN: {TELEGRAPH_ACCESS_TOKEN}")
+print(f"TELEGRAM_BOT_TOKEN: {TELEGRAM_BOT_TOKEN}")
+print(f"TELEGRAM_CHAT_ID: {TELEGRAM_CHAT_ID}")
