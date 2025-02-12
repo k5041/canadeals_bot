@@ -15,28 +15,29 @@ TELEGRAPH_EDIT_URL = "https://api.telegra.ph/editPage"
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 def clean_content(html_content):
-    """ Clean and convert HTML content to Telegra.ph's format. """
-    
-    # Remove unwanted text (e.g., the signup section)
+    """ Remove unwanted text and convert HTML tags to Telegra.ph format. """
     unwanted_text = "<h2>Sign up for YYZ Deals Alerts</h2>"
     if unwanted_text in html_content:
         html_content = html_content.split(unwanted_text)[0]
-    
-    # Convert image tags
-    img_pattern = re.compile(r'<img.*?src="(.*?)".*?/>')
-    html_content = re.sub(img_pattern, lambda match: f'{"tag": "img", "attrs": {{"src": "{match.group(1)}}"}}}', html_content)
-    
-    # Convert anchor tags (links)
-    link_pattern = re.compile(r'<a href="(.*?)".*?>(.*?)</a>')
-    html_content = re.sub(link_pattern, lambda match: f'{"tag": "a", "attrs": {{"href": "{match.group(1)}"}}, "children": ["{match.group(2)}"]}', html_content)
-    
-    # Convert <strong> to bold text
-    html_content = html_content.replace('<strong>', '{"tag": "b", "children": [').replace('</strong>', ']}')
-    
-    # Convert <em> to italic text
-    html_content = html_content.replace('<em>', '{"tag": "i", "children": [').replace('</em>', ']}')
-    
+
+    # Fix images
+    img_pattern = r'<img.*?src=["\'](https?://.*?)(?=["\'])'
+    html_content = re.sub(img_pattern, lambda match: f'{{"tag": "img", "attrs": {{"src": "{match.group(1)}"}}}}', html_content)
+
+    # Fix links
+    link_pattern = r'<a.*?href=["\'](https?://.*?)(?=["\'])'
+    html_content = re.sub(link_pattern, lambda match: f'{{"tag": "a", "attrs": {{"href": "{match.group(1)}"}}}}', html_content)
+
+    # Fix strong (bold) text
+    strong_pattern = r'<strong.*?>(.*?)</strong>'
+    html_content = re.sub(strong_pattern, lambda match: f'{{"tag": "strong", "children": ["{match.group(1)}"]}}', html_content)
+
+    # Fix em (italic) text
+    em_pattern = r'<em.*?>(.*?)</em>'
+    html_content = re.sub(em_pattern, lambda match: f'{{"tag": "em", "children": ["{match.group(1)}"]}}', html_content)
+
     return html_content
+
 
 def create_telegraph_post(title, content):
     """ Create a new Telegra.ph post. """
