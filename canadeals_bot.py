@@ -1,103 +1,98 @@
-import os
-import time
-import logging
-import feedparser
 import requests
+import feedparser
+import os
 from telegram import Bot
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-
-# Load environment variables
+# Constants
+RSS_FEED_URL = "https://www.yyzdeals.com/atom/1"
+TELEGRAPH_ACCESS_TOKEN = os.getenv("TELEGRAPH_ACCESS_TOKEN")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-RSS_FEED_URL = os.getenv("RSS_FEED_URL")
 
-# Telegraph API
-TELEGRAPH_API_URL = "https://api.telegra.ph/createPage"
-TELEGRAPH_AUTHOR_NAME = os.getenv("TELEGRAPH_AUTHOR_NAME")
-TELEGRAPH_AUTHOR_URL = os.getenv("TELEGRAPH_AUTHOR_URL")
+# API URLs
+TELEGRAPH_CREATE_URL = "https://api.telegra.ph/createPage"
+TELEGRAPH_EDIT_URL = "https://api.telegra.ph/editPage"
 
-# Store posted articles {link: message_id}
-posted_articles = {}
 
-def fetch_rss():
-    """Fetches and parses the RSS feed."""
-    feed = feedparser.parse(RSS_FEED_URL)
-    return feed.entries
+def clean_content(html_content):
+    """ Remove unwanted text from the content. """
+    unwanted_text = "<h2>Sign up for YYZ Deals Alerts</h2>"
+    if unwanted_text in html_content:
+        html_content = html_content.split(unwanted_text)[0]
+    return html_content
 
-def clean_content(summary):
-    """Removes unwanted text from the summary."""
-    unwanted_text = "Sign up for YYZ Deals Alerts"
-    if unwanted_text in summary:
-        summary = summary.split(unwanted_text)[0].strip()
-    return summary
 
 def create_telegraph_post(title, content):
-    """Creates a Telegraph post and returns the post URL."""
-    response = requests.post(TELEGRAPH_API_URL, json={
-        "access_token": "YOUR_TELEGRAPH_ACCESS_TOKEN",
+    """ Create a new Telegra.ph post. """
+    response = requests.post(TELEGRAPH_CREATE_URL, json={
+        "access_token": TELEGRAPH_ACCESS_TOKEN,
         "title": title,
-        "author_name": TELEGRAPH_AUTHOR_NAME,
-        "author_url": TELEGRAPH_AUTHOR_URL,
+        "author_name": "YYZ Deals Bot",
         "content": [{"tag": "p", "children": [content]}],
     })
-    
-    if response.status_code == 200:
-        return response.json().get("result", {}).get("url")
-    else:
-        logging.error(f"Telegraph Error: {response.text}")
-        return None
+    if response.status_code == 200 and "result" in response.json():
+        return response.json()["result"]["url"]
+    return None
 
-def post_to_telegram(bot, entry):
-    """Sends a new RSS entry to Telegram."""
-    title = entry.title
-    link = entry.link
-    summary = clean_content(entry.summary if hasattr(entry, "summary") else "No description available.")
-    
-    telegraph_url = create_telegraph_post(title, summary)
-    if not telegraph_url:
-        return
-    
-    message = f"**{title}**\n[Read more]({telegraph_url})"
-    sent_message = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode="Markdown")
-    
-    # Store the message ID to track updates
-    posted_articles[link] = sent_message.message_id
 
-def update_telegram_post(bot, entry):
-    """Updates an already posted message if content changes."""
-    title = entry.title
-    link = entry.link
-    summary = clean_content(entry.summary if hasattr(entry, "summary") else "No description available.")
-    
-    telegraph_url = create_telegraph_post(title, summary)
-    if not telegraph_url:
-        return
-    
-    message = f"**{title}**\n[Read more]({telegraph_url})"
-    
-    if link in posted_articles:
-        bot.edit_message_text(chat_id=TELEGRAM_CHAT_ID, message_id=posted_articles[link], text=message, parse_mode="Markdown")
+def edit_telegraph_post(path, title, content):
+    """ Edit an existing Telegra.ph post. """
+    response = requests.post(TELEGRAPH_EDIT_URL, json={
+        "access_token": TELEGRAPH_ACCESS_TOKEN,
+        "path": path,
+        "title": title,
+        "author_name": "YYZ Deals Bot",
+        "content": [{"tag": "p", "children": [content]}],
+    })
+    if response.status_code == 200 and "result" in response.json():
+        return response.json()["result"]["url"]
+    return None
 
-def main():
+
+def get_last_10_messages():
+    """ Fetch the last 10 messages from the Telegram channel. """
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    
-    while True:
-        try:
-            entries = fetch_rss()
-            for entry in entries:
-                if entry.link not in posted_articles:
-                    post_to_telegram(bot, entry)
-                else:
-                    update_telegram_post(bot, entry)
+    updates = bot.get_updates(limit=10)
 
-            # Sleep for 10 minutes before checking again
-            time.sleep(600)
-        
-        except Exception as e:
-            logging.error(f"Error fetching or sending RSS updates: {e}")
-            time.sleep(60)  # Retry after 1 minute
+    messages = {}
+    for update in updates:
+        if update.message and update.message.text:
+            title = update.message.text.split("\n")[0].replace("📢 *", "").replace("*", "")
+            link = update.message.text.split("[")[1].split("]")[0] if "[" in update.message.text else None
+            messages[title] = {"message_id": update.message.message_id, "telegraph_url": link}
+
+    return messages
+
+
+def check_feed():
+    """ Process RSS feed and post updates to Telegram. """
+    posted_messages = get_last_10_messages()
+    feed = feedparser.parse(RSS_FEED_URL)
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
+    for entry in feed.entries:
+        title = entry.title
+        content_html = clean_content(entry.content[0].value)
+
+        if title not in posted_messages:
+            # Create new Telegraph post
+            telegraph_url = create_telegraph_post(title, content_html)
+
+            if telegraph_url:
+                message_text = f"📢 *{title}*\n[Read More]({telegraph_url})"
+                bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text, parse_mode="Markdown")
+
+        else:
+            # Check if content has changed
+            old_telegraph_url = posted_messages[title]["telegraph_url"]
+            telegraph_path = old_telegraph_url.split("/")[-1]
+
+            updated_telegraph_url = edit_telegraph_post(telegraph_path, title, content_html)
+
+            if updated_telegraph_url and updated_telegraph_url != old_telegraph_url:
+                new_message_text = f"📢 *{title}*\n[Updated Post]({updated_telegraph_url})"
+                bot.edit_message_text(chat_id=TELEGRAM_CHAT_ID, message_id=posted_messages[title]["message_id"], text=new_message_text, parse_mode="Markdown")
+
 
 if __name__ == "__main__":
-    main()
+    check_feed()
