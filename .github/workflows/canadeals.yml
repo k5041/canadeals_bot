@@ -2,7 +2,7 @@ name: Telegram RSS Bot
 
 on:
   schedule:
-    - cron: "*/10 * * * *"  # Runs every 10 minutes
+    - cron: "*/60 * * * *"  # Runs every 10 minutes
   workflow_dispatch:  # Allows manual execution
 
 jobs:
@@ -15,10 +15,10 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install requests feedparser beautifulsoup4
+        run: pip install requests feedparser beautifulsoup4 bleach
       - name: Run bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAPH_ACCESS_TOKEN: ${{ secrets.TELEGRAPH_ACCESS_TOKEN }}
-        run: python canadeals_bot.py
+        run: python deals.py
