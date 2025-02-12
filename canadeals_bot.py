@@ -1,7 +1,6 @@
 import requests
 import feedparser
 import os
-from telegram import Bot
 
 # Constants
 RSS_FEED_URL = "https://www.yyzdeals.com/atom/1"
@@ -12,7 +11,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 # API URLs
 TELEGRAPH_CREATE_URL = "https://api.telegra.ph/createPage"
 TELEGRAPH_EDIT_URL = "https://api.telegra.ph/editPage"
-
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 def clean_content(html_content):
     """ Remove unwanted text from the content. """
@@ -51,36 +50,39 @@ def edit_telegraph_post(path, title, content):
 
 def get_last_10_messages():
     """ Fetch the last 10 messages from the Telegram channel. """
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    updates = bot.get_updates(limit=10)
-
-    messages = {}
-    for update in updates:
-        if update.message and update.message.text:
-            title = update.message.text.split("\n")[0].replace("📢 *", "").replace("*", "")
-            link = update.message.text.split("[")[1].split("]")[0] if "[" in update.message.text else None
-            messages[title] = {"message_id": update.message.message_id, "telegraph_url": link}
-
-    return messages
+    response = requests.get(f"{TELEGRAM_API_URL}/getUpdates")
+    if response.status_code == 200:
+        updates = response.json().get("result", [])
+        messages = {}
+        for update in updates:
+            if "message" in update and "text" in update["message"]:
+                title = update["message"]["text"].split("\n")[0].replace("📢 *", "").replace("*", "")
+                link = update["message"]["text"].split("[")[1].split("]")[0] if "[" in update["message"]["text"] else None
+                messages[title] = {"message_id": update["message"]["message_id"], "telegraph_url": link}
+        return messages
+    return {}
 
 
 def check_feed():
     """ Process RSS feed and post updates to Telegram. """
     posted_messages = get_last_10_messages()
     feed = feedparser.parse(RSS_FEED_URL)
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
-
     for entry in feed.entries:
         title = entry.title
         content_html = clean_content(entry.content[0].value)
 
+        # If the post hasn't been posted yet
         if title not in posted_messages:
             # Create new Telegraph post
             telegraph_url = create_telegraph_post(title, content_html)
 
             if telegraph_url:
                 message_text = f"📢 *{title}*\n[Read More]({telegraph_url})"
-                bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message_text, parse_mode="Markdown")
+                requests.post(f"{TELEGRAM_API_URL}/sendMessage", data={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "text": message_text,
+                    "parse_mode": "Markdown"
+                })
 
         else:
             # Check if content has changed
@@ -91,7 +93,12 @@ def check_feed():
 
             if updated_telegraph_url and updated_telegraph_url != old_telegraph_url:
                 new_message_text = f"📢 *{title}*\n[Updated Post]({updated_telegraph_url})"
-                bot.edit_message_text(chat_id=TELEGRAM_CHAT_ID, message_id=posted_messages[title]["message_id"], text=new_message_text, parse_mode="Markdown")
+                requests.post(f"{TELEGRAM_API_URL}/editMessageText", data={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "message_id": posted_messages[title]["message_id"],
+                    "text": new_message_text,
+                    "parse_mode": "Markdown"
+                })
 
 
 if __name__ == "__main__":
