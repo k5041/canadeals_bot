@@ -102,19 +102,17 @@ def edit_telegraph_post(path, title, content):
 
 def get_last_10_messages():
     """ Fetch the last 10 messages from the Telegram channel. """
-    response = requests.get(f"{TELEGRAM_API_URL}/getChatHistory", params={
-        "chat_id": TELEGRAM_CHAT_ID,
-        "limit": 10
-    })
+    response = requests.get(f"{TELEGRAM_API_URL}/getUpdates")
     if response.status_code == 200:
-        messages = response.json().get("result", [])
+        messages = response.json().get("result", [])[-10:]
         parsed_messages = {}
         for msg in messages:
-            if "text" in msg:
-                text = msg["text"]
+            if "message" in msg and "text" in msg["message"]:
+                text = msg["message"]["text"]
                 title = text.split("\n")[0].replace("📢 *", "").replace("*", "").strip()
-                telegraph_url = text.split("[Read More](")[-1].split(")")[0]
-                parsed_messages[title] = {"message_id": msg["message_id"], "telegraph_url": telegraph_url}
+                if "[Read More](" in text:
+                    telegraph_url = text.split("[Read More](")[-1].split(")")[0]
+                    parsed_messages[title] = {"message_id": msg["message"]["message_id"], "telegraph_url": telegraph_url}
         return parsed_messages
     return {}
 
