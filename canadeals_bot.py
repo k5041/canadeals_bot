@@ -24,7 +24,7 @@ def clean_content(html_content):
     
     # Convert image tags
     img_pattern = re.compile(r'<img.*?src="(.*?)".*?/>')
-    html_content = re.sub(img_pattern, lambda match: f'{"tag": "img", "attrs": {{"src": "{match.group(1)}}"}}', html_content)
+    html_content = re.sub(img_pattern, lambda match: f'{"tag": "img", "attrs": {{"src": "{match.group(1)}}"}}}', html_content)
     
     # Convert anchor tags (links)
     link_pattern = re.compile(r'<a href="(.*?)".*?>(.*?)</a>')
