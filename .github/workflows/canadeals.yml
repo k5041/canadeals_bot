@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install requests feedparser
+        run: pip install requests feedparser beautifulsoup4
       - name: Run bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
