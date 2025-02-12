@@ -52,7 +52,7 @@ def edit_telegraph_post(path, title, content):
 def get_last_10_messages():
     """ Fetch the last 10 messages from the Telegram channel. """
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    updates = bot.getUpdates(limit=10)
+    updates = bot.get_updates(limit=10)
 
     messages = {}
     for update in updates:
