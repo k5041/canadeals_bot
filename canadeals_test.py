@@ -2,7 +2,7 @@ import requests
 import os
 
 TELEGRAPH_ACCESS_TOKEN = os.getenv("TELEGRAPH_ACCESS_TOKEN")
-TELEGRAM_BOT_TOKEN = os.getenv("YOUR_BOT_TOKEN")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # Step 1: Create a Telegra.ph post
